@@ -333,14 +333,7 @@ impl<C> Painter<C> {
             None => (std::ptr::null_mut(), None),
         };
 
-        let min = clip_rect.min * pixels_per_point;
-        let max = clip_rect.max * pixels_per_point;
-        let clip_rect = sdl2::rect::Rect::new(
-            min.x as i32,
-            min.y as i32,
-            (max.x - min.x) as u32,
-            (max.y - min.y) as u32,
-        );
+        let clip_rect = clip_in_pixels(clip_rect, pixels_per_point);
         // Confined to the damaged area, and dropped when it falls outside it.
         let clip_rect = match self.damage {
             Some(damage) => match clip_rect.intersection(damage) {
@@ -508,6 +501,19 @@ fn unscaled_onto_pixels(
         w,
         h,
     }
+}
+
+/// `clip` scaled to whole pixels, each edge rounded to the nearest one: a
+/// fractional zoom leaves an edge just short of the pixel it covers.
+fn clip_in_pixels(clip: egui::Rect, pixels_per_point: f32) -> sdl2::rect::Rect {
+    let min = (clip.min * pixels_per_point).round();
+    let max = (clip.max * pixels_per_point).round();
+    sdl2::rect::Rect::new(
+        min.x as i32,
+        min.y as i32,
+        (max.x - min.x).max(0.0) as u32,
+        (max.y - min.y).max(0.0) as u32,
+    )
 }
 
 /// The two triangles of an unrotated, single-colour quad, if that is what these
@@ -683,6 +689,17 @@ mod tests {
         };
         let kept = unscaled_onto_pixels(&dst, &src);
         assert_eq!((kept.x, kept.y, kept.w, kept.h), (10.5, 20.5, 128.0, 128.0));
+    }
+
+    /// A clip at a fractional zoom keeps the row its far edge rounds to.
+    #[test]
+    fn a_clip_keeps_its_last_row_at_a_fractional_zoom() {
+        let clip = egui::Rect::from_min_max(egui::pos2(7.0, 10.0), egui::pos2(23.0, 39.0));
+        let pixels = clip_in_pixels(clip, 1.3);
+        assert_eq!(
+            (pixels.x(), pixels.y(), pixels.right(), pixels.bottom()),
+            (9, 13, 30, 51)
+        );
     }
 
     #[test]
