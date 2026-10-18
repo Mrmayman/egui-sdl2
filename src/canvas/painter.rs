@@ -353,13 +353,22 @@ impl<C> Painter<C> {
         // are exact and cheap. Rounded corners, circles and feathering stay on
         // the triangle path. Flushing before each blit keeps egui's draw order.
         self.index_scratch.clear();
-        for corners in mesh.indices.chunks(6) {
-            match as_axis_aligned_quad(&mesh.vertices, corners, pixels_per_point) {
+        // A quad may start on any triangle: shapes with an odd triangle count
+        // share the mesh.
+        let mut at = 0;
+        while at < mesh.indices.len() {
+            let pair = mesh.indices.get(at..at + QUAD_INDICES);
+            match pair.and_then(|c| as_axis_aligned_quad(&mesh.vertices, c, pixels_per_point)) {
                 Some(quad) => {
                     self.flush_triangles(canvas, texture_ptr, &mesh, pixels_per_point);
                     quad.blit(canvas, texture_ptr, texture_size);
+                    at += QUAD_INDICES;
                 }
-                None => self.index_scratch.extend_from_slice(corners),
+                None => {
+                    let end = (at + TRIANGLE_INDICES).min(mesh.indices.len());
+                    self.index_scratch.extend_from_slice(&mesh.indices[at..end]);
+                    at = end;
+                }
             }
         }
         self.flush_triangles(canvas, texture_ptr, &mesh, pixels_per_point);
@@ -503,6 +512,10 @@ fn unscaled_onto_pixels(
     }
 }
 
+/// Indices per triangle, and per quad drawn as two of them.
+const TRIANGLE_INDICES: usize = 3;
+const QUAD_INDICES: usize = 2 * TRIANGLE_INDICES;
+
 /// `clip` scaled to whole pixels, each edge rounded to the nearest one: a
 /// fractional zoom leaves an edge just short of the pixel it covers.
 fn clip_in_pixels(clip: egui::Rect, pixels_per_point: f32) -> sdl2::rect::Rect {
@@ -523,7 +536,7 @@ fn as_axis_aligned_quad(
     corners: &[u32],
     pixels_per_point: f32,
 ) -> Option<Quad> {
-    if corners.len() != 6 {
+    if corners.len() != QUAD_INDICES {
         return None;
     }
     let mut uniq: Vec<&egui::epaint::Vertex> = Vec::with_capacity(4);
