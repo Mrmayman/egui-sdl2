@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-18
+
+### Fixed
+
+- The canvas backend blits text and rectangles that follow a shape with an odd
+  triangle count in the same mesh; they no longer lose rows at a fractional zoom.
+- The canvas backend rounds clip rect edges to the nearest pixel; a fractional
+  zoom no longer cuts the last row or column of a clipped area.
+
 ## [0.12.0] - 2026-09-02
 
 ### Added
@@ -205,7 +214,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 See the [GitHub releases](https://github.com/mxmgorin/egui-sdl2/releases) and
 [tags](https://github.com/mxmgorin/egui-sdl2/tags) for versions 0.3.2 and earlier.
 
-[Unreleased]: https://github.com/mxmgorin/egui-sdl2/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/mxmgorin/egui-sdl2/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/mxmgorin/egui-sdl2/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/mxmgorin/egui-sdl2/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/mxmgorin/egui-sdl2/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/mxmgorin/egui-sdl2/compare/v0.9.0...v0.10.0
