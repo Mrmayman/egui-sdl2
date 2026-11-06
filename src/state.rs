@@ -194,6 +194,7 @@ impl State {
                 egui::OutputCommand::CopyImage(_color_image) => {
                     log::warn!("CopyImage is not supported")
                 }
+                egui::OutputCommand::TextSelectionSettled(_) => {}
                 egui::OutputCommand::OpenUrl(_url) => {
                     #[cfg(feature = "links")]
                     if let Err(err) = webbrowser::open(&_url.url) {
@@ -318,6 +319,7 @@ impl State {
                     // horizontal scroll
                     self.egui_input.events.push(egui::Event::MouseWheel {
                         unit: MouseWheelUnit::Line,
+                        source: egui::MouseWheelSource::Wheel,
                         delta: egui::vec2(dx + dy, 0.0),
                         phase: egui::TouchPhase::Move,
                         modifiers: self.modifiers,
@@ -326,6 +328,7 @@ impl State {
                     // regular scroll
                     self.egui_input.events.push(egui::Event::MouseWheel {
                         unit: MouseWheelUnit::Line,
+                        source: egui::MouseWheelSource::Wheel,
                         delta: egui::vec2(dx, dy),
                         phase: egui::TouchPhase::Move,
                         modifiers: self.modifiers,

@@ -1,11 +1,11 @@
-use egui::{Event, ViewportId};
+use egui::ViewportId;
 use egui_wgpu::capture::CaptureState;
 use egui_wgpu::wgpu::{CompositeAlphaMode, TextureFormat};
 use egui_wgpu::wgpu::{
     Surface, SurfaceConfiguration, SurfaceTargetUnsafe, TextureUsages, TextureViewDescriptor,
 };
 use egui_wgpu::{RenderState, RendererOptions, SurfaceErrorAction, WgpuConfiguration, WgpuError};
-use std::{num::NonZeroU32, sync::Arc};
+use std::num::NonZeroU32;
 
 struct SurfaceState {
     surface: Surface<'static>,
@@ -16,7 +16,6 @@ struct SurfaceState {
 
 /// Everything you need to paint egui with [`wgpu`](https://docs.rs/wgpu) on [`sdl2`].
 pub struct Painter {
-    context: egui::Context,
     configuration: WgpuConfiguration,
     msaa_samples: u32,
     support_transparent_backbuffer: bool,
@@ -30,8 +29,6 @@ pub struct Painter {
     depth_texture_view: egui::ViewportIdMap<egui_wgpu::wgpu::TextureView>,
     msaa_texture_view: egui::ViewportIdMap<egui_wgpu::wgpu::TextureView>,
     surfaces: egui::ViewportIdMap<SurfaceState>,
-    capture_tx: egui_wgpu::capture::CaptureSender,
-    capture_rx: egui_wgpu::capture::CaptureReceiver,
     options: egui_wgpu::RendererOptions,
 }
 
@@ -49,18 +46,15 @@ impl Painter {
     /// a [`sdl2::video::Window`] with a valid `.raw_window_handle()`
     /// associated.
     pub async fn new(
-        context: egui::Context,
         configuration: WgpuConfiguration,
         msaa_samples: u32,
         depth_format: Option<TextureFormat>,
         support_transparent_backbuffer: bool,
         dithering: bool,
     ) -> Self {
-        let (capture_tx, capture_rx) = std::sync::mpsc::channel();
         let instance = configuration.wgpu_setup.new_instance().await;
 
         Self {
-            context,
             configuration,
             msaa_samples,
             support_transparent_backbuffer,
@@ -74,8 +68,6 @@ impl Painter {
             surfaces: Default::default(),
             msaa_texture_view: Default::default(),
 
-            capture_tx,
-            capture_rx,
             options: RendererOptions {
                 msaa_samples,
                 depth_stencil_format: depth_format,
@@ -284,7 +276,7 @@ impl Painter {
         clipped_primitives: &[egui::ClippedPrimitive],
         // Drained: egui 0.36 asserts on drop that every delta was handled.
         textures_delta: &mut egui::TexturesDelta,
-        capture_data: Vec<egui::UserData>,
+        capture_data: Vec<egui::ScreenshotCallback>,
     ) -> f32 {
         let capture = !capture_data.is_empty();
         let mut vsync_sec = 0.0;
@@ -367,9 +359,13 @@ impl Painter {
 
             let target_texture = if capture {
                 let capture_state = self.screen_capture_state.get_or_insert_with(|| {
-                    CaptureState::new(&render_state.device, &output_frame.texture)
+                    CaptureState::new(
+                        &render_state.device,
+                        output_frame.texture.size(),
+                        output_frame.texture.format(),
+                    )
                 });
-                capture_state.update(&render_state.device, &output_frame.texture);
+                capture_state.update(&render_state.device, output_frame.texture.size());
 
                 &capture_state.texture
             } else {
@@ -430,7 +426,7 @@ impl Painter {
                 if let Some(capture_state) = &mut self.screen_capture_state {
                     capture_buffer = Some(capture_state.copy_textures(
                         &render_state.device,
-                        &output_frame,
+                        Some(&output_frame),
                         &mut encoder,
                     ));
                 }
@@ -461,13 +457,7 @@ impl Painter {
 
         if let Some(capture_buffer) = capture_buffer {
             if let Some(screen_capture_state) = &mut self.screen_capture_state {
-                screen_capture_state.read_screen_rgba(
-                    self.context.clone(),
-                    capture_buffer,
-                    capture_data,
-                    self.capture_tx.clone(),
-                    viewport_id,
-                );
+                screen_capture_state.read_screen_rgba(capture_buffer, capture_data);
             }
         }
 
@@ -480,20 +470,6 @@ impl Painter {
         }
 
         vsync_sec
-    }
-
-    /// Call this at the beginning of each frame to receive the requested screenshots.
-    pub fn handle_screenshots(&self, events: &mut Vec<Event>) {
-        for (viewport_id, user_data, screenshot) in self.capture_rx.try_iter() {
-            let screenshot: Arc<egui::ColorImage> = Arc::new(screenshot);
-            for data in user_data {
-                events.push(Event::Screenshot {
-                    viewport_id,
-                    user_data: data,
-                    image: screenshot.clone(),
-                });
-            }
-        }
     }
 }
 

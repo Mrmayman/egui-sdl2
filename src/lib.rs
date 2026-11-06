@@ -106,6 +106,9 @@ pub struct EguiRunOutput {
     /// fold this into their idle wait so animations and first-frame layout show
     /// without an extra input event.
     pub repaint_delay: std::time::Duration,
+
+    /// Screenshot requests made for the root viewport during the latest run.
+    pub(crate) screenshots: Vec<egui::ScreenshotCallback>,
 }
 
 impl Default for EguiRunOutput {
@@ -117,6 +120,7 @@ impl Default for EguiRunOutput {
             pixels_per_point: 1.0,
             textures_delta: Default::default(),
             repaint_delay: std::time::Duration::MAX,
+            screenshots: Default::default(),
         }
     }
 }
@@ -168,7 +172,7 @@ impl EguiRunOutput {
         let raw_input = state.take_egui_input();
         let egui::FullOutput {
             platform_output,
-            viewport_output,
+            mut viewport_output,
             textures_delta,
             shapes,
             pixels_per_point,
@@ -177,6 +181,16 @@ impl EguiRunOutput {
 
         self.shapes = shapes;
         self.textures_delta.append(textures_delta);
+        if let Some(root) = viewport_output.get_mut(&egui::ViewportId::ROOT) {
+            self.screenshots
+                .extend(root.commands.drain(..).filter_map(|command| {
+                    if let egui::ViewportCommand::Screenshot(callback) = command {
+                        Some(callback)
+                    } else {
+                        None
+                    }
+                }));
+        }
         self.pixels_per_point = pixels_per_point;
         // Surface egui's own repaint timing for the ROOT viewport so event-driven
         // backends don't drop it: a sizing pass for a freshly shown anchored Area

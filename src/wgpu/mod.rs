@@ -66,7 +66,7 @@ impl EguiWgpu {
             )),
             ..Default::default()
         };
-        let mut painter = painter::Painter::new(ctx.clone(), config, 1, None, true, false).await;
+        let mut painter = painter::Painter::new(config, 1, None, true, false).await;
         // SAFETY:
         // Window lives as long as self
         unsafe {
@@ -143,7 +143,7 @@ impl EguiWgpu {
             clear_color,
             &clipped_primitives,
             &mut textures_delta,
-            Vec::with_capacity(0),
+            std::mem::take(&mut self.run_output.screenshots),
         );
     }
 }
